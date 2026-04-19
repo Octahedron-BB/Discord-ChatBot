@@ -1,0 +1,8 @@
+discord.py
+python-dotenv
+chromadb
+torch
+# --extra-index-url https://download.pytorch.org/whl/cpu # 適用於docker
+sentence-transformers
+google-genai
+numpy

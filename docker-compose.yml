@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  discord-bot:
+    build: .
+    container_name: discord-chat-ai
+    env_file:
+      - .env
+    volumes:
+      - ./discord_memory_db:/app/discord_memory_db
+      - ./current_persona.txt:/app/current_persona.txt
+    restart: unless-stopped
+    # If you need proxy, uncomment and configure
+    # environment:
+    #   - HTTP_PROXY=http://your-proxy:port
+    #   - HTTPS_PROXY=http://your-proxy:port
