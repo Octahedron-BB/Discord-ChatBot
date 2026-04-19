@@ -6,7 +6,6 @@ import sys
 import io
 import config
 
-# 強制 UTF-8
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 
