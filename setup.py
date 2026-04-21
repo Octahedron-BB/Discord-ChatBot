@@ -28,7 +28,7 @@ def run_command(command, description, interactive=False):
         return False
 
 def check_requirements(input_file):
-    """Check necessary"""
+    """Check if required files exist"""
     required_files = [input_file, 'config.py']
     missing_files = []
 

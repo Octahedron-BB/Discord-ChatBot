@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from main import DiscordTwin
 import config
 
+os.environ['ANONYMIZED_TELEMETRY'] = 'False'
 # 1. Load environment variables from config
 load_dotenv()
 API_KEY = config.API_KEY
@@ -28,10 +29,17 @@ intents = discord.Intents.default()
 intents.message_content = True  # Must be enabled, otherwise the bot cannot see message content
 
 class EchoMirrorBot(discord.Client):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.last_msg_time = {}  # channel_id: timestamp
+        self.is_responding = {}   # channel_id: bool
+
     async def on_ready(self):
         print(f'✅ Successfully logged in as {self.user}')
         print(f'🎯 Allowed private chat IDs: {ALLOWED_PRIVATE_IDS}')
         print(f'📢 Will respond to @mentions in servers')
+        if config.AUTO_REPLY_CHANNEL_ID:
+            print(f'🤖 Auto-responding enabled in channel: {config.AUTO_REPLY_CHANNEL_ID}')
         print('='*40)
 
     async def on_message(self, message):
@@ -39,38 +47,84 @@ class EchoMirrorBot(discord.Client):
         if message.author == self.user:
             return
 
-        # Check if it's a private message from an allowed user
-        if isinstance(message.channel, discord.DMChannel) and message.author.id in ALLOWED_PRIVATE_IDS:
-            print(f"📥 Received DM from {message.author.name}: {message.content}")
-            await self._process_message(message)
+        now = asyncio.get_event_loop().time()
+        channel_id = message.channel.id
         
-        # Check if bot is mentioned in a server message
-        elif message.guild and self.user.mentioned_in(message) and config.RESPOND_TO_MENTIONS:
-            # Remove the mention from the content to get the actual message
-            clean_content = message.content.replace(f"<@{self.user.id}>", "").replace(f"<@!{self.user.id}>", "").strip()
-            if clean_content:
-                print(f"📥 Received mention from {message.author.name} in #{message.channel.name}: {clean_content}")
-                # Replace the message content for processing
-                message.content = clean_content
-                await self._process_message(message)
+        # 2s-Absolute Refractory Period
+        last_time = self.last_msg_time.get(channel_id, 0)
+        if (now - last_time) < config.REFRACTORY_ABSOLUTE:
+            # We still record the time of this message to extend the refractory period
+            self.last_msg_time[channel_id] = now
+            return
+        
+        # Record this message's time
+        self.last_msg_time[channel_id] = now
+
+        # Case 1: Specific Auto-Reply Channel
+        is_auto_channel = (channel_id == config.AUTO_REPLY_CHANNEL_ID)
+        
+        # Case 2: Private Message
+        is_private = isinstance(message.channel, discord.DMChannel) and message.author.id in ALLOWED_PRIVATE_IDS
+        
+        # Case 3: Mention in Server
+        is_mention = message.guild and self.user.mentioned_in(message) and config.RESPOND_TO_MENTIONS
+
+        should_reply = False
+        trigger_text = message.content
+
+        if is_private:
+            should_reply = True
+        elif is_mention:
+            should_reply = True
+            # Clean up mentions
+            trigger_text = message.content.replace(f"<@{self.user.id}>", "").replace(f"<@!{self.user.id}>", "").strip()
+        elif is_auto_channel:
+            # Selective Reply (Probability check if bot is already responding)
+            if self.is_responding.get(channel_id, False):
+                if random.random() < config.CHANNEL_REPLY_PROBABILITY:
+                    should_reply = True
+            else:
+                should_reply = True
+        
+        if should_reply and trigger_text:
+            await self._process_message(message, trigger_text)
     
-    async def _process_message(self, message):
+    async def _process_message(self, message, clean_text):
         """Process and respond to a message"""
-        # Trigger Discord's native "typing..." animation
-        async with message.channel.typing():
+        channel_id = message.channel.id
+        self.is_responding[channel_id] = True
+        
+        try:
+            # Fetch background context (10 messages before the current one)
+            background_history = []
+            async for msg in message.channel.history(limit=10, before=message):
+                author = msg.author.display_name
+                background_history.append(f"{author}: {msg.clean_content}")
             
-            # Key optimization: since twin.respond is a synchronous function
-            # Use asyncio.to_thread to run it in the background to avoid blocking the Discord bot's connection
-            reply = await asyncio.to_thread(twin.respond, message.content)
-            
-            # Human-like typing delay (using asyncio.sleep)
-            delay = random.uniform(config.AUTO_REPLY_DELAY_MIN, config.AUTO_REPLY_DELAY_MAX)
-            print(f"⏳ Simulating typing, waiting {delay:.1f} seconds...")
-            await asyncio.sleep(delay)
-            
-            # Send message back to Discord
-            await message.channel.send(reply)
-            print(f"📤 Replied: {reply}\n")
+            # History is fetched newest first, so we reverse it
+            background_history.reverse()
+            history_text = "\n".join(background_history)
+
+            # Trigger Discord's native "typing..." animation
+            async with message.channel.typing():
+                # twin.respond now can handle history_text
+                reply = await twin.respond(
+                    clean_text, 
+                    author_id=str(message.author.id), 
+                    author_name=message.author.display_name,
+                    background_history=history_text
+                )
+                
+                # Human-like typing delay
+                delay = random.uniform(config.AUTO_REPLY_DELAY_MIN, config.AUTO_REPLY_DELAY_MAX)
+                print(f"⏳ [{message.channel}] Simulating typing: {delay:.1f}s")
+                await asyncio.sleep(delay)
+                
+                # Send message back to Discord
+                await message.channel.send(reply)
+                print(f"📤 [{message.channel}] Replied: {reply}\n")
+        finally:
+            self.is_responding[channel_id] = False
 
 
 # 4. Start the bot

@@ -45,8 +45,27 @@ for session in sessions:
         ids.append(f"memory_block_{doc_id}")
         doc_id += 1
 
-# 5. Batch write
-embeddings = model.encode(documents, normalize_embeddings=True).tolist()
-collection.add(embeddings=embeddings, documents=documents, metadatas=metadatas, ids=ids)
+# 5. Batch write to prevent OOM
+BATCH_SIZE = 50  # Smaller batch size for VPS memory safety
+total_blocks = len(documents)
+print(f"📦 Total memory blocks to process: {total_blocks}")
 
-print(f"✅ Database update complete! Total {doc_id} memory blocks stored.")
+for i in range(0, total_blocks, BATCH_SIZE):
+    batch_docs = documents[i:i + BATCH_SIZE]
+    batch_meta = metadatas[i:i + BATCH_SIZE]
+    batch_ids = ids[i:i + BATCH_SIZE]
+    
+    # Encode current batch
+    batch_embeddings = model.encode(batch_docs, normalize_embeddings=True).tolist()
+    
+    # Add to ChromaDB
+    collection.add(
+        embeddings=batch_embeddings,
+        documents=batch_docs,
+        metadatas=batch_meta,
+        ids=batch_ids
+    )
+    
+    print(f"⏳ Progress: {min(i + BATCH_SIZE, total_blocks)}/{total_blocks} blocks stored...")
+
+print(f"✅ Database update complete! Total {total_blocks} memory blocks stored.")

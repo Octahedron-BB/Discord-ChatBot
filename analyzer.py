@@ -38,7 +38,7 @@ def analyze_chat_features(file_path, target_user='me', update_config=False):
             last_time = current_time
             last_role = role
 
-    # 計算統計數據
+    # Calculate statistics
     stats = {
         'response_delays': response_delays,
         'message_lengths': message_lengths,
@@ -86,7 +86,7 @@ def update_reply_timing_config(avg_delay, min_delay, max_delay):
         min_reply = max(0.5, avg_delay * 0.5)
         max_reply = min(5.0, avg_delay * 2.0)
 
-    # 更新AUTO_REPLY_DELAY_MIN
+    # Update AUTO_REPLY_DELAY_MIN
     import re
     content = re.sub(
         r'AUTO_REPLY_DELAY_MIN\s*=\s*[\d.]+',
@@ -94,7 +94,7 @@ def update_reply_timing_config(avg_delay, min_delay, max_delay):
         content
     )
 
-    # 更新AUTO_REPLY_DELAY_MAX
+    # Update AUTO_REPLY_DELAY_MAX
     content = re.sub(
         r'AUTO_REPLY_DELAY_MAX\s*=\s*[\d.]+',
         f'AUTO_REPLY_DELAY_MAX = {max_reply:.1f}',

@@ -4,20 +4,20 @@
 
 ## 🌟 核心功能 (Features)
 
-- **語氣學習**: 從 Discord 聊天記錄中分析並精準模仿特定用戶的說話風格與 Emoji 習慣。
-- **長期記憶系統**: 使用向量數據庫（ChromaDB）與 Sentence-Transformers 檢索相關歷史對話背景。
-- **人性化互動**: 自定義回覆延遲（模擬打字狀態）與隨機錯字生成，徹底褪去機器味。
-- **自動化設置**: 提供一鍵設置腳本，自動完成數據清洗、特徵分析與資料庫構建。
-- **開箱即用的部署**: 支援 Docker Compose，無懼底層依賴衝突，VPS 部署首選。
+- **語氣學習**: 從 Discord 聊天記錄中分析並精準模仿特定用戶的說話風格。
+- **動態學習能力**: 機器人能在對話過程中實時記錄新的交流片段，並自動更新至長期記憶庫中。
+- **上下文關聯**: 自動擷取最近的對話歷史作為背景，確保回覆內容具有高度的連貫性。
+- **語義檢索增強 (RAG)**: 使用向量數據庫 (ChromaDB) 檢索歷史記憶，並具備 **查詢擴展 (Query Expansion)** 技術，自動優化搜尋關鍵詞以提高匹配率。
+- **人性化互動**: 支援模擬打字狀態、隨機錯字生成，以及基於統計數據的 **自動回覆延遲調優**。
+- **開箱即用的部署**: 支援 Docker Compose，具備代理伺服器 (Proxy) 支援，無懼網路限制。
 
 ## 📁 系統架構與組件 (Components)
 
-- `cleaner.py`: 將原始 Discord JSON 匯出檔清洗並結構化為對話片段。
-- `profile_builder.py`: 使用 AI 從聊天數據中生成專屬的角色設定 (Persona)。
-- `analyzer.py`: 計算平均回覆延遲時間與字詞使用習慣。
-- `build_vectordb.py`: 建立語義記憶庫 (Semantic Memory)。
-- `brain.py`: AI 核心邏輯與查詢擴展 (Query Expansion)。
-- `main.py` / `discord_bot.py`: 機器人互動入口與 Discord 連線處理。
+- `setup.py`: **核心設置腳本**。依次執行數據清洗、人格生成、風格分析與數據庫構建。
+- `discord_bot.py`: **機器人運行主體**。處理 Discord 連線、模擬打字動畫，並支援連網代理 (Proxy) 設定。
+- `analyzer.py`: **特徵分析器**。分析用戶回覆延遲與遣詞用字，支持 `--update-config` 自動將統計結果應用至設定檔。
+- `main.py`: 封裝了 `DiscordTwin` 類，核心處理 RAG 檢索、動態學習與文本生成。
+- `brain.py`: AI 核心邏輯，負責調用 Gemini API 與執行 **查詢擴展**，提升記憶檢索深度。
 
 ## 🚀 快速開始 (Quick Start)
 
@@ -32,19 +32,16 @@
 # Google Gemini API Key
 DISCORD_AI_API_KEY=你的_GEMINI_API_金鑰
 
-# Discord bot Token 
-DISCORD_BOT_TOKEN=你的_DISCORD_機器人_TOKEN
+# (選填) 好友暱稱映射 (JSON 格式，ID需為字串)
+FRIEND_ALIASES_JSON='{"123456789": "暱稱"}'
 
-# 允許私聊的 Discord ID (多個 ID 請用逗號分隔，例如: 12345,67890)
-ALLOWED_PRIVATE_IDS=XXXXX,XXXX
+# (選填) 指定自動回覆頻道 ID
+AUTO_REPLY_CHANNEL_ID=
 
-# 機器人要模仿的目標使用者名稱 (Persona)
-TARGET_USER_NAME=
+# (選填) 自動回覆機率 (0.0 到 1.0)
+CHANNEL_REPLY_PROBABILITY=0.5
 
-# 預設聊天對象的名稱
-DEFAULT_FRIEND_NAME=
-
-# (選填) 關閉 ChromaDB 匿名追蹤以保持日誌乾淨
+# (選填) 關閉 ChromaDB 匿名追蹤
 ANONYMIZED_TELEMETRY=False
 ```
 
@@ -76,10 +73,11 @@ python main.py
 編輯 `config.py` 來微調機器人的行為參數：
 - `TYPO_PROBABILITY`: 隨機錯字生成的機率。
 - `AUTO_REPLY_DELAY_MIN` / `MAX`: 模擬真人打字延遲的秒數範圍。
-- `PROACTIVE_IDLE_TIME`: 主動模式觸發間隔（小時），閒置過久會主動搭話。
+- `PROACTIVE_IDLE_TIME`: 主動模式觸發間隔（小時）。
+- `SESSION_SPLIT_TIME`: 對話會話分割時間（秒），預設 1800 秒。
+- `WINDOW_SIZE` / `STEP`: 向量資料庫構建時的滑動窗口大小與步長。
+- `REFRACTORY_ABSOLUTE`: 強制冷卻時間（秒），防止連續觸發。
 - `PERSONA`: AI 的詳細角色人格設定。
-
-## ⚠️ 注意事項
 
 - **硬體資源**：在沒有 GPU 的環境（如 VPS），安裝依賴時請確保下載 CPU 版本的 PyTorch (`--extra-index-url https://download.pytorch.org/whl/cpu`) 以節省空間。
 
@@ -91,20 +89,20 @@ An AI-powered auto-reply Discord bot built with RAG (Retrieval-Augmented Generat
 
 ## 🌟 Features
 
-- **Style Learning**: Analyzes and perfectly mimics a specific user's speaking style and emoji habits from Discord chat logs.
-- **Long-term Memory System**: Leverages a vector database (ChromaDB) and Sentence-Transformers to retrieve relevant historical conversation context.
-- **Humanized Interaction**: Features customizable simulated typing delays and randomized typo generation for a natural feel.
-- **Automated Setup**: A streamlined setup script automatically handles data cleaning, analysis, and DB construction.
-- **Containerized Deployment**: Docker Compose ready, making it robust against dependency conflicts and ideal for VPS deployment.
+- **Style Learning**: Analyzes and mimics a specific user's speaking style from Discord chat logs.
+- **Dynamic Learning**: Real-time recording of ongoing conversations, automatically indexed into the long-term memory.
+- **Contextual Awareness**: Automatically retrieves recent message history to ensure highly coherent responses.
+- **Retrieval-Augmented Generation (RAG)**: Leverages ChromaDB for memory recall, featuring **Query Expansion** to automatically optimize search terms for better accuracy.
+- **Humanized Interaction**: Features simulated typing status, randomized typos, and **auto-tuned reply delays** based on user statistics.
+- **Ready-to-Deploy**: Docker Compose support with built-in **Proxy handling** for restricted network environments.
 
 ## 📁 Components
 
-- `cleaner.py`: Processes raw Discord JSON exports into structured sessions.
-- `profile_builder.py`: Uses AI to generate a dedicated persona profile from chat data.
-- `analyzer.py`: Calculates average response time and vocabulary habits.
-- `build_vectordb.py`: Builds the semantic memory using sentence embeddings.
-- `brain.py`: Core AI logic and query expansion.
-- `main.py` / `discord_bot.py`: Interactive bot entry point and Discord gateway handler.
+- `setup.py`: **Main Setup Script**. Automates cleaning, persona building, style analysis, and DB construction.
+- `discord_bot.py`: **Bot Entry Point**. Handles Discord connectivity, simulated typing, and optional proxy settings.
+- `analyzer.py`: **Style Analyzer**. Examines reply latency and vocabulary, supports `--update-config` to auto-apply statistics.
+- `main.py`: Contains the `DiscordTwin` class which handles RAG retrieval, dynamic learning, and generation.
+- `brain.py`: Core AI logic, responsible for Gemini API interaction and **Query Expansion** for deeper memory retrieval.
 
 ## 🚀 Quick Start
 
@@ -119,19 +117,16 @@ Create a `.env` file in the root directory and fill it out following this format
 # Google Gemini API Key
 DISCORD_AI_API_KEY=your_gemini_api_key_here
 
-# Discord bot Token 
-DISCORD_BOT_TOKEN=your_discord_bot_token_here
+# (Optional) Friend Name Aliases (JSON format, IDs must be strings)
+FRIEND_ALIASES_JSON='{"123456789": "Nickname"}'
 
-# Allowed private chat IDs (comma separated)
-ALLOWED_PRIVATE_IDS=12345,67890
+# (Optional) Specific Auto-Reply Channel ID
+AUTO_REPLY_CHANNEL_ID=
 
-# Target user name to mimic (Persona)
-TARGET_USER_NAME=YourName
+# (Optional) Auto-Reply Probability (0.0 to 1.0)
+CHANNEL_REPLY_PROBABILITY=0.5
 
-# Default chat partner's name
-DEFAULT_FRIEND_NAME=FriendName
-
-# Disable ChromaDB telemetry for cleaner logs
+# (Optional) Disable ChromaDB telemetry
 ANONYMIZED_TELEMETRY=False
 ```
 
@@ -162,10 +157,11 @@ python main.py
 
 Edit `config.py` to customize the bot's behavior:
 - `TYPO_PROBABILITY`: Probability of introducing random typos.
-- `AUTO_REPLY_DELAY_MIN` / `MAX`: Range for the simulated typing delay (in seconds).
-- `PROACTIVE_IDLE_TIME`: Idle time threshold (hours) before the bot initiates a conversation proactively.
+- `AUTO_REPLY_DELAY_MIN` / `MAX`: Range for simulated typing delay (seconds).
+- `PROACTIVE_IDLE_TIME`: Threshold (hours) for initiating proactive conversations.
+- `SESSION_SPLIT_TIME`: Session timeout (seconds) for splitting chat history.
+- `WINDOW_SIZE` / `STEP`: Sliding window configuration for vector DB indexing.
+- `REFRACTORY_ABSOLUTE`: Mandatory cooldown period (seconds) between replies.
 - `PERSONA`: Detailed character profile and instructions for the AI.
-
-## ⚠️ Notes
 
 - **Resources**: When installing on a VPS without a GPU, ensure you install the CPU version of PyTorch to save disk space.

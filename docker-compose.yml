@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   discord-bot:
     build: .
@@ -9,6 +7,7 @@ services:
     volumes:
       - ./discord_memory_db:/app/discord_memory_db
       - ./current_persona.txt:/app/current_persona.txt
+      - ./config.py:/app/config.py
     restart: unless-stopped
     # If you need proxy, uncomment and configure
     # environment:
