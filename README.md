@@ -1,170 +1,138 @@
 # Discord Chat AI (EchoMirror)
 
-一個基於 RAG (檢索增強生成) 與大語言模型（預設 DeepSeek，可切換 Gemini）打造的 Discord 自動回覆機器人項目。它能從過往的聊天記錄中分析並模仿特定用戶的說話風格、口癖與記憶，實現極高擬真度的「數位孿生」。
+[English](README.md) | [繁體中文](README_zh.md)
 
-## 🌟 核心功能 (Features)
-
-- **語氣學習**: 從 Discord / LINE 聊天記錄中分析並精準模仿特定用戶的說話風格。
-- **多模型支援**: 預設支援 **DeepSeek**（`deepseek-chat` / `deepseek-reasoner`），亦可一鍵切換為 **Google Gemini**（支援 Cloudflare Worker 代理）。
-- **動態學習能力**: 機器人能在對話過程中實時記錄新的交流片段，並自動更新至長期記憶庫中。
-- **群聊主動破冰 (Proactive Mode)**: 當指定群聊頻道長時間無人發言時，機器人會從過往記憶中提取話題主動發起對話。
-- **上下文關聯**: 自動擷取最近的對話歷史作為背景，確保回覆內容具有高度的連贯性。
-- **語義檢索增強 (RAG)**: 使用向量數據庫 (ChromaDB) 檢索歷史記憶，並具備 **查詢擴展 (Query Expansion)** 技術，自動優化搜尋關鍵詞以提高匹配率。
-- **人性化互動**: 支援模擬打字狀態、隨機錯字生成，以及基於統計數據的 **自動回覆延遲調優**。
-- **開箱即用的部署**: 支援 Docker Compose，具備代理伺服器 (Proxy) 支援，無懼網路限制。
-
-## 📁 系統架構與組件 (Components)
-
-- `setup.py`: **核心設置腳本**。依次執行數據清洗、人格生成、風格分析與數據庫構建。
-- `discord_bot.py`: **機器人運行主體**。處理 Discord 連線、模擬打字動畫，並支援連網代理 (Proxy) 設定。
-- `analyzer.py`: **特徵分析器**。分析用戶回覆延遲與遣詞用字，支持 `--update-config` 自動將統計結果應用至設定檔。
-- `main.py`: 封裝了 `DiscordTwin` 類，核心處理 RAG 檢索、動態學習與文本生成。
-- `brain.py`: AI 核心邏輯，支援 DeepSeek 與 Gemini 多模態呼叫與查詢擴展。
-- `vision.py`: 視覺理解模組，處理圖片、GIF 首幀抽取與表情包畫面分析。
-
-## 🚀 快速開始 (Quick Start)
-
-### 1. 準備對話紀錄 (匯出記憶)
-1. 使用 [DiscordChatExporter](https://github.com/Tyrrrz/DiscordChatExporter) 匯出你與朋友的歷史私聊或群組對話，格式請選擇 **JSON**。
-2. 將匯出的檔案重新命名為 `MyA_Chat.json`（或依腳本設定）並放入專案根目錄。
-
-### 2. 配置環境變數 (`.env`)
-在專案根目錄建立 `.env` 檔案，嚴格按照以下格式填入設定：
-
-```env
-# Google Gemini API Key
-DISCORD_AI_API_KEY=你的_GEMINI_API_金鑰
-
-# (選填) 好友暱稱映射 (JSON 格式，ID需為字串)
-FRIEND_ALIASES_JSON='{"123456789": "暱稱"}'
-
-# (選填) 指定自動回覆頻道 ID
-AUTO_REPLY_CHANNEL_ID=
-
-# (選填) 自動回覆機率 (0.0 到 1.0)
-CHANNEL_REPLY_PROBABILITY=0.5
-
-# (選填) 關閉 ChromaDB 匿名追蹤
-ANONYMIZED_TELEMETRY=False
-```
-
-### 3. 啟動方式 (選擇一種)
-
-#### 選項 A：使用 Docker 部署（推薦，適合 VPS 與生產環境）
-```bash
-# 1. 啟動機器人容器
-docker compose up -d
-
-# 2. 構建向量資料庫與自動化分析 (僅第一次或更新資料時需要)
-docker compose run --rm discord-bot python setup.py
-```
-
-#### 選項 B：本地運行（適合開發測試）
-```bash
-# 1. 安裝依賴 (建議使用虛擬環境)
-pip install -r requirements.txt
-
-# 2. 運行自動化設置 (清洗、分析、建庫)
-python setup.py
-
-# 3. 啟動機器人
-python main.py
-```
-
-## ⚙️ 配置說明 (Configuration)
-
-編輯 `config.py` 來微調機器人的行為參數：
-- `TYPO_PROBABILITY`: 隨機錯字生成的機率。
-- `AUTO_REPLY_DELAY_MIN` / `MAX`: 模擬真人打字延遲的秒數範圍。
-- `PROACTIVE_IDLE_TIME`: 主動模式觸發間隔（小時）。
-- `SESSION_SPLIT_TIME`: 對話會話分割時間（秒），預設 1800 秒。
-- `WINDOW_SIZE` / `STEP`: 向量資料庫構建時的滑動窗口大小與步長。
-- `REFRACTORY_ABSOLUTE`: 強制冷卻時間（秒），防止連續觸發。
-- `PERSONA`: AI 的詳細角色人格設定。
-
-- **硬體資源**：在沒有 GPU 的環境（如 VPS），安裝依賴時請確保下載 CPU 版本的 PyTorch (`--extra-index-url https://download.pytorch.org/whl/cpu`) 以節省空間。
+An AI-powered Discord "digital twin" auto-reply bot built with RAG (Retrieval-Augmented Generation), Few-Shot in-context learning, and dual-provider LLM support (**DeepSeek** & **Google Gemini**). It captures and mimics a specific user's conversational tone, texting cadence, emoji habits, and episodic memories based on past chat archives.
 
 ---
 
-# Discord Chat AI (EchoMirror) - English Version
+## 🌟 Key Features
 
-An AI-powered auto-reply Discord bot built with RAG (Retrieval-Augmented Generation) and the Gemini API. It accurately mimics the speaking style, habits, and memories of a specific user based on past chat logs, creating a highly realistic "digital twin."
+- **Dual LLM Provider & Dynamic Switching**:
+  - Native support for **DeepSeek** (`deepseek-flash` for high-speed multimodal, `deepseek-chat` V3, `deepseek-reasoner` R1 reasoning chain).
+  - Native support for **Google Gemini** (`gemini-3.8-flash` multimodal flagship, `gemini-3.1-pro-preview` deep reasoning). Supports Cloudflare Worker reverse proxies for geo-unrestricted connectivity.
+  - Seamless in-chat runtime model switching via bot commands (`!model`).
 
-## 🌟 Features
+- **Human-like Burst Texting Cadence**:
+  - Say goodbye to monolithic AI essay responses! Sends **1 to 5 sequential short messages** just like a real friend chatting on Discord.
+  - Features dynamic typing delays and realistic Discord "typing..." state intervals between message bursts.
 
-- **Style Learning**: Analyzes and mimics a specific user's speaking style from Discord chat logs.
-- **Dynamic Learning**: Real-time recording of ongoing conversations, automatically indexed into the long-term memory.
-- **Contextual Awareness**: Automatically retrieves recent message history to ensure highly coherent responses.
-- **Retrieval-Augmented Generation (RAG)**: Leverages ChromaDB for memory recall, featuring **Query Expansion** to automatically optimize search terms for better accuracy.
-- **Humanized Interaction**: Features simulated typing status, randomized typos, and **auto-tuned reply delays** based on user statistics.
-- **Ready-to-Deploy**: Docker Compose support with built-in **Proxy handling** for restricted network environments.
+- **Few-Shot In-Context Persona Learning**:
+  - Instead of brittle and rigid prompt scripts, dynamically retrieves semantic dialogue pairs from a 17,000+ vector memory database (ChromaDB) as Few-Shot exemplars.
+  - Dynamically infers mood states (casual, sleepy, sarcastic, teasing) to maintain conversational elasticity.
 
-## 📁 Components
+- **Multimodal Vision & Twitter/X Media Parsing (`vision.py`)**:
+  - Automatically parses attached images and samples first-frame features from GIFs.
+  - Integrates `api.fxtwitter.com` to resolve Twitter / X links, extracting high-resolution video thumbnails and tweet bodies even when companion bots split embeds.
 
-- `setup.py`: **Main Setup Script**. Automates cleaning, persona building, style analysis, and DB construction.
-- `discord_bot.py`: **Bot Entry Point**. Handles Discord connectivity, simulated typing, and optional proxy settings.
-- `analyzer.py`: **Style Analyzer**. Examines reply latency and vocabulary, supports `--update-config` to auto-apply statistics.
-- `main.py`: Contains the `DiscordTwin` class which handles RAG retrieval, dynamic learning, and generation.
-- `brain.py`: Core AI logic, responsible for Gemini API interaction and **Query Expansion** for deeper memory retrieval.
+- **Anti-Fatigue & Emoji Frequency Control**:
+  - Built-in probabilistic gating to prevent AI inductive bias from overusing emojis (e.g., spamming `🤔` on every question).
+  - Maintains 80%+ pure text conversations while preserving natural, sporadic standalone emoji reactions.
+
+- **Isolated Bot Management Commands**:
+  - Built-in commands (`!model`, `!model list`, `!debug`, `!help`) that execute immediately without leaking into or triggering persona chatter.
+  - Settings are hot-persisted to `.env` in real time.
+
+- **Proactive Group Ice-Breaking**:
+  - When an assigned server channel remains quiet for an extended period (e.g., 24 hours), the bot recalls a memory from the database and proactively initiates a conversation.
+
+- **Docker-Ready & Hot-Reloadable**:
+  - Full Docker Compose integration with volume-mapped code execution for instant updates.
+
+---
+
+## 📁 System Architecture & Components
+
+- `discord_bot.py`: **Main Discord Entrypoint**. Handles Gateway events, simulated typing cadence, Twitter/media resolution, bot commands, and sequential burst sending.
+- `main.py`: **Digital Twin Core (`DiscordTwin`)**. Coordinates ChromaDB memory retrieval, Few-Shot prompt assembly, and dynamic mood synthesis.
+- `brain.py`: **Unified LLM Engine (`ChatBrain`)**. Abstracts DeepSeek and Gemini API calls, vision multimodal queries, and dynamic model switching.
+- `vision.py`: **Visual & Media Understanding**. Handles image downsampling, GIF frame extraction, and Twitter metadata retrieval.
+- `analyzer.py`: **Chat Feature Analyzer**. Examines reply latency and message length distributions, automatically tuning timing parameters via `--update-config`.
+- `profile_builder.py`: Behavioral profile generator for extracting communication style summaries from raw chat logs.
+- `setup.py`: **All-in-One Initializer**. Automates data cleaning, persona building, style analysis, and vector database indexing.
+
+---
 
 ## 🚀 Quick Start
 
 ### 1. Prepare Chat Data
-1. Export your historical DMs or server chats using [DiscordChatExporter](https://github.com/Tyrrrz/DiscordChatExporter). Set the export format to **JSON**.
-2. Rename the exported file to `MyA_Chat.json` (or as configured) and place it in the project root directory.
+1. Export your historical Discord DMs or group chats using [DiscordChatExporter](https://github.com/Tyrrrz/DiscordChatExporter) (Select **JSON** format).
+2. Rename the exported file to `MyA_Chat.json` and place it in the project root directory (cleaned LINE chat exports are also supported).
 
 ### 2. Configure Environment (`.env`)
-Create a `.env` file in the root directory and fill it out following this format:
-
+Copy the sanitized environment template:
+```bash
+cp .env.example .env
+```
+Edit your `.env` file with your credentials:
 ```env
-# Google Gemini API Key
-DISCORD_AI_API_KEY=your_gemini_api_key_here
+# --- Choose default LLM provider ('deepseek' or 'gemini') ---
+LLM_PROVIDER=deepseek
 
-# (Optional) Friend Name Aliases (JSON format, IDs must be strings)
-FRIEND_ALIASES_JSON='{"123456789": "Nickname"}'
+# DeepSeek Configuration
+DEEPSEEK_API_KEY=your_deepseek_api_key
+DEEPSEEK_MODEL=deepseek-flash
 
-# (Optional) Specific Auto-Reply Channel ID
-AUTO_REPLY_CHANNEL_ID=
+# Google Gemini Configuration
+DISCORD_AI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=gemini-3.8-flash
+# Optional Gemini reverse proxy
+# GEMINI_PROXY_URL=https://your-worker.workers.dev
 
-# (Optional) Auto-Reply Probability (0.0 to 1.0)
-CHANNEL_REPLY_PROBABILITY=0.5
+# Discord Bot Token
+DISCORD_BOT_TOKEN=your_discord_bot_token
 
-# (Optional) Disable ChromaDB telemetry
-ANONYMIZED_TELEMETRY=False
+# Admin & allowed private chat Discord User IDs (comma-separated)
+ALLOWED_PRIVATE_IDS=123456789,987654321
+
+# Auto-reply server channel ID (Set to 0 to only reply in DMs & @mentions)
+AUTO_REPLY_CHANNEL_ID=0
 ```
 
-### 3. Launch the Bot (Choose one method)
+### 3. Launching the Bot
 
-#### Option A: Docker Deployment (Recommended for VPS)
+#### Option A: Docker Deployment (Recommended for VPS / Production)
 ```bash
-# 1. Build and start the container
+# 1. Start the bot container in background
 docker compose up -d
 
-# 2. Run the setup script to build the DB (Only needed on first run or data update)
+# 2. Build the vector database (Only needed on first setup or data update)
 docker compose run --rm discord-bot python setup.py
 ```
 
-#### Option B: Local Execution
+#### Option B: Local Execution (For Development)
 ```bash
 # 1. Install dependencies (Virtual environment recommended)
 pip install -r requirements.txt
 
-# 2. Run automated setup (Cleans data, analyzes, and builds DB)
+# 2. Run automated setup (Cleans data, analyzes habits, builds DB)
 python setup.py
 
-# 3. Launch the bot
-python main.py
+# 3. Start the bot
+python discord_bot.py
 ```
 
-## ⚙️ Configuration
+---
 
-Edit `config.py` to customize the bot's behavior:
-- `TYPO_PROBABILITY`: Probability of introducing random typos.
-- `AUTO_REPLY_DELAY_MIN` / `MAX`: Range for simulated typing delay (seconds).
-- `PROACTIVE_IDLE_TIME`: Threshold (hours) for initiating proactive conversations.
-- `SESSION_SPLIT_TIME`: Session timeout (seconds) for splitting chat history.
-- `WINDOW_SIZE` / `STEP`: Sliding window configuration for vector DB indexing.
-- `REFRACTORY_ABSOLUTE`: Mandatory cooldown period (seconds) between replies.
-- `PERSONA`: Detailed character profile and instructions for the AI.
+## 💬 In-Chat Bot Commands
 
-- **Resources**: When installing on a VPS without a GPU, ensure you install the CPU version of PyTorch to save disk space.
+Send these commands in any channel or DM where the bot has access (**commands will never trigger persona chit-chat**):
+
+| Command | Permission | Description |
+| :--- | :---: | :--- |
+| `!help` | Everyone | Displays the help manual and current runtime status |
+| `!model` | Admin | Shows active model, provider, endpoint, and debug mode status |
+| `!model list` | Admin | Displays all verified, recommended models (DeepSeek & Gemini) |
+| `!model <name>` | Admin | Seamlessly switches the model (e.g., `!model gemini-3.8-flash` or `!model deepseek-flash`) |
+| `!model deepseek` / `!model gemini` | Admin | Quick-switches provider and automatically selects its recommended default |
+| `!debug` / `!debug on` / `!debug off` | Admin | Toggles debug mode (inspects parsed vision/link preview tokens before reply) |
+
+---
+
+## ⚙️ Advanced Settings (`config.py`)
+
+- `AUTO_REPLY_DELAY_MIN` / `AUTO_REPLY_DELAY_MAX`: Simulated reading/typing delay before the first message (default: 2.0s ~ 10.0s).
+- `CHANNEL_REPLY_PROBABILITY`: Probability of spontaneously replying to a message in the auto-reply channel (default: 0.5).
+- `PROACTIVE_IDLE_TIME`: Inactivity threshold (in hours) to trigger a proactive conversation opener (default: 24).
+- `SESSION_SPLIT_TIME`: Conversation session segmentation boundary (default: 1800 seconds).
+- `TYPO_PROBABILITY`: Chance of simulating natural human keyboard slips (default: 0.005).
