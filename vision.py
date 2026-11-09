@@ -48,50 +48,114 @@ async def fetch_twitter_metadata(tweet_url: str) -> dict | None:
 
 async def fetch_instagram_metadata(ig_url: str) -> dict | None:
     """
-    Fetch Instagram post/reel caption and preview image using proxy embed parser.
-    Supports posts (/p/), reels (/reel/), and videos (/tv/).
+    Fetch Instagram post/reel caption and preview image.
+    Uses multi-stage fallback:
+    1. Official Instagram oEmbed API (fast, high-res thumbnail and full caption for public posts)
+    2. vxinstagram proxy (OpenGraph tags)
+    3. kkclip mirror (handles HTML meta tags and direct image streams)
+    Supports posts (/p/), reels (/reel/, /reels/), and videos (/tv/).
     """
     import html as html_lib
-    match = re.search(r'https?://(?:www\.)?instagram\.com/(?:p|reel|tv)/([^/?#&]+)', ig_url)
+    import urllib.parse
+
+    match = re.search(r'https?://(?:www\.)?(?:instagram\.com|instagr\.am)/(?:p|reel|reels|tv|share/(?:p|reel))/([a-zA-Z0-9_-]+)', ig_url)
     if not match:
         return None
     shortcode = match.group(1)
+    clean_url = f"https://www.instagram.com/p/{shortcode}/"
 
-    mirrors = [
-        f"https://www.kkclip.com/p/{shortcode}/",
-        f"https://www.kkclip.com/reel/{shortcode}/",
-    ]
-
-    headers = {
+    headers_browser = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    headers_bot = {
         "User-Agent": "Discordbot/2.0 (+https://discordapp.com)"
     }
 
-    for mirror_url in mirrors:
+    async with httpx.AsyncClient(timeout=7.0, follow_redirects=True) as client:
+        # Stage 1: Official Instagram oEmbed API
         try:
-            async with httpx.AsyncClient(timeout=7.0, follow_redirects=True) as client:
-                resp = await client.get(mirror_url, headers=headers)
+            oembed_url = f"https://www.instagram.com/api/v1/oembed/?url={urllib.parse.quote(clean_url)}"
+            resp = await client.get(oembed_url, headers=headers_browser)
+            if resp.status_code == 200:
+                data = resp.json()
+                author = (data.get("author_name") or "").strip()
+                title = (data.get("title") or "").strip()
+                thumb = (data.get("thumbnail_url") or "").strip()
+                if author or title or thumb:
+                    print(f"✅ [Instagram] oEmbed resolved: {shortcode} (author: {author})")
+                    return {
+                        "author": author,
+                        "text": title,
+                        "media_urls": [thumb] if thumb else []
+                    }
+        except Exception as e:
+            print(f"⚠️ [Instagram oEmbed] Error: {e}")
+
+        # Stage 2: vxinstagram mirror
+        try:
+            vx_url = f"https://www.vxinstagram.com/p/{shortcode}/"
+            resp = await client.get(vx_url, headers=headers_bot)
+            if resp.status_code == 200:
+                text_content = resp.text
+                title_m = re.search(r'<meta\s+(?:property|name)=[\'"](?:og:title|twitter:title)[\'"]\s+content=[\'"]([^\'"]*)[\'"]', text_content, re.IGNORECASE)
+                desc_m = re.search(r'<meta\s+(?:property|name)=[\'"](?:og:description|twitter:description|description)[\'"]\s+content=[\'"]([^\'"]*)[\'"]', text_content, re.IGNORECASE)
+                img_m = re.search(r'<meta\s+(?:property|name)=[\'"](?:og:image|twitter:image)[\'"]\s+content=[\'"]([^\'"]*)[\'"]', text_content, re.IGNORECASE)
+
+                author = html_lib.unescape(title_m.group(1)).strip() if title_m else ""
+                desc = html_lib.unescape(desc_m.group(1)).strip() if desc_m else ""
+                img_url = html_lib.unescape(img_m.group(1)).strip() if img_m else ""
+
+                if author or desc or img_url:
+                    print(f"✅ [Instagram] vxinstagram resolved: {shortcode}")
+                    return {
+                        "author": author,
+                        "text": desc,
+                        "media_urls": [img_url] if img_url else []
+                    }
+        except Exception as e:
+            print(f"⚠️ [Instagram vxinstagram] Error: {e}")
+
+        # Stage 3: kkclip mirror (handles HTML meta tags and direct image streaming)
+        kk_urls = [
+            f"https://www.kkclip.com/p/{shortcode}/",
+            f"https://www.kkclip.com/reel/{shortcode}/"
+        ]
+        for mirror_url in kk_urls:
+            try:
+                resp = await client.get(mirror_url, headers=headers_bot)
                 if resp.status_code == 200:
+                    ct = resp.headers.get("content-type", "").lower()
+                    if "image/" in ct or resp.content.startswith(b'\xff\xd8\xff'):
+                        print(f"✅ [Instagram] kkclip direct image stream resolved: {shortcode}")
+                        return {
+                            "author": "",
+                            "text": "",
+                            "media_urls": [mirror_url]
+                        }
+
                     text_content = resp.text
-                    title_m = re.search(r'<meta\s+property=[\'"]og:title[\'"]\s+content=[\'"]([^\'"]*)[\'"]', text_content)
-                    desc_m = re.search(r'<meta\s+(?:property=[\'"]og:description[\'"]|name=[\'"]description[\'"])\s+content=[\'"]([^\'"]*)[\'"]', text_content)
-                    img_m = re.search(r'<meta\s+(?:property=[\'"]og:image[\'"]|name=[\'"]twitter:image[\'"])\s+content=[\'"]([^\'"]*)[\'"]', text_content)
+                    title_m = re.search(r'<meta\s+(?:property|name)=[\'"](?:twitter:title|og:title)[\'"]\s+content=[\'"]([^\'"]*)[\'"]', text_content, re.IGNORECASE)
+                    desc_m = re.search(r'<meta\s+(?:property|name)=[\'"](?:og:description|twitter:description|description)[\'"]\s+content=[\'"]([^\'"]*)[\'"]', text_content, re.IGNORECASE)
+                    img_m = re.search(r'<meta\s+(?:property|name)=[\'"](?:twitter:image|og:image)[\'"]\s+content=[\'"]([^\'"]*)[\'"]', text_content, re.IGNORECASE)
 
                     author = html_lib.unescape(title_m.group(1)).strip() if title_m else ""
                     desc = html_lib.unescape(desc_m.group(1)).strip() if desc_m else ""
                     img_url = html_lib.unescape(img_m.group(1)).strip() if img_m else ""
 
-                    if " on Instagram" in author:
+                    if " • Instagram" in author:
+                        author = author.split(" • Instagram")[0].strip()
+                    elif " on Instagram" in author:
                         author = author.replace(" on Instagram", "").strip()
 
                     if author or desc or img_url:
-                        media_urls = [img_url] if img_url else []
+                        print(f"✅ [Instagram] kkclip HTML resolved: {shortcode}")
                         return {
                             "author": author,
                             "text": desc,
-                            "media_urls": media_urls
+                            "media_urls": [img_url] if img_url else []
                         }
-        except Exception as e:
-            print(f"⚠️ [Instagram Parser] Failed fetching {mirror_url}: {e}")
+            except Exception as e:
+                print(f"⚠️ [Instagram kkclip] Error on {mirror_url}: {e}")
 
     return None
 
@@ -138,11 +202,10 @@ def preprocess_image_bytes(image_bytes: bytes, filename: str = "") -> tuple[str,
         print(f"⚠️ [Vision] Image preprocessing failed: {e}")
         return "", False
 
-async def download_and_preprocess(url: str, timeout: float = 6.0) -> tuple[str, bool]:
+async def download_and_preprocess(url: str, timeout: float = 8.0) -> tuple[str, bool]:
     """Download image from URL and preprocess it."""
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
+    ua = "Discordbot/2.0 (+https://discordapp.com)" if ("kkclip.com" in url or "vxinstagram.com" in url) else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    headers = {"User-Agent": ua}
     try:
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             resp = await client.get(url, headers=headers)

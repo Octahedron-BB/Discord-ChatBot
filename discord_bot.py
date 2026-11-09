@@ -82,7 +82,7 @@ async def extract_content_with_embeds(message, raw_text, brain=None):
                 return enriched
 
     # 2. Specialized Instagram Resolver
-    ig_match = re.search(r'https?://(?:www\.)?instagram\.com/(?:p|reel|tv)/[a-zA-Z0-9_-]+', raw_text)
+    ig_match = re.search(r'https?://(?:www\.)?(?:instagram\.com|instagr\.am)/(?:p|reel|reels|tv|share/(?:p|reel))/[a-zA-Z0-9_-]+', raw_text)
     if ig_match and brain:
         ig_url = ig_match.group(0)
         print(f"📷 [Instagram] Detected Instagram URL: {ig_url}, fetching rich metadata...")
