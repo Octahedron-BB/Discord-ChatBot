@@ -28,7 +28,7 @@ def run_command(command, description, interactive=False):
         return False
 
 def check_requirements(input_file):
-    """Check if required files exist"""
+    """檢查必要文件是否存在"""
     required_files = [input_file, 'config.py']
     missing_files = []
 
@@ -43,19 +43,19 @@ def main():
     print("=" * 40)
 
     # Check API Key from config
+    provider = getattr(config, 'LLM_PROVIDER', 'deepseek')
     api_key = config.API_KEY
     if not api_key or api_key.strip() == "your_api_key_here":
-        print("❌ API Key not set or invalid!")
-        print("Please set your Google AI API Key in the .env file:")
-        print("DISCORD_AI_API_KEY='your_actual_google_ai_api_key'")
-        print("")
-        print("How to get an API Key:")
-        print("1. Visit https://aistudio.google.com/app/apikey")
-        print("2. Create a new API Key")
-        print("3. Copy the key and add it to your .env file")
+        print(f"❌ API Key not set or invalid for provider '{provider}'!")
+        if provider == 'deepseek':
+            print("Please set your DeepSeek API Key in the .env file:")
+            print("DEEPSEEK_API_KEY='your_actual_deepseek_api_key'")
+        else:
+            print("Please set your Google AI API Key in the .env file:")
+            print("DISCORD_AI_API_KEY='your_actual_google_ai_api_key'")
         return
 
-    print("✅ API Key is set")
+    print(f"✅ API Key is set (Provider: {provider.upper()})")
 
     # Ask for input filename
     input_file = input("Enter the Discord chat history filename (default: MyA_Chat.json): ").strip()

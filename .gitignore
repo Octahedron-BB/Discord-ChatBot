@@ -116,16 +116,36 @@ dmypy.json
 # Project specific ignores
 # Vector database (generated data)
 discord_memory_db/
+*.sqlite3
 
-# Chat data (may contain personal information)
+# Chat data & personal logs (contains private information)
 MyA_Chat.json
 cleaned_chat.json
+LINEchat.txt
+linechat.json
+*chat*.json
+*chat*.txt
+*Chat*.json
+*Chat*.txt
+
+# Personal scripts & logs
+append_vectordb.py
+convert_line.py
+*.log
 
 # Generated persona
 current_persona.txt
+*.persona
+
+# Environment & credentials
+.env
+.env.local
+.env.*.local
+!.env.example
 
 # IDE settings
 .vscode/
+.idea/
 
 # OS generated files
 .DS_Store

@@ -1,8 +1,11 @@
-discord.py
-python-dotenv
-chromadb
-torch
-# --extra-index-url https://download.pytorch.org/whl/cpu # docker
-sentence-transformers
-google-genai
-numpy
+discord.py==2.3.2
+python-dotenv==1.0.0
+chromadb>=1.5.0
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.2.2+cpu
+sentence-transformers==2.7.0
+openai>=1.0.0
+google-genai==0.5.0
+numpy==1.26.4
+pillow>=10.0.0
+httpx>=0.25.0

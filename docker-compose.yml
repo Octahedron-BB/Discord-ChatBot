@@ -5,11 +5,5 @@ services:
     env_file:
       - .env
     volumes:
-      - ./discord_memory_db:/app/discord_memory_db
-      - ./current_persona.txt:/app/current_persona.txt
-      - ./config.py:/app/config.py
+      - .:/app
     restart: unless-stopped
-    # If you need proxy, uncomment and configure
-    # environment:
-    #   - HTTP_PROXY=http://your-proxy:port
-    #   - HTTPS_PROXY=http://your-proxy:port
