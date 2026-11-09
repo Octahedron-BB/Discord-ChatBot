@@ -11,9 +11,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Load environment variables from .env file located in project directory
 dotenv_path = os.path.join(BASE_DIR, ".env")
 if os.path.exists(dotenv_path):
-    load_dotenv(dotenv_path)
+    load_dotenv(dotenv_path, override=True)
 else:
-    load_dotenv()
+    load_dotenv(override=True)
 
 # --- LLM Provider Configuration ---
 # Options: 'deepseek' (default) or 'gemini'
@@ -114,7 +114,8 @@ PERSONA = load_persona()
 
 
 def update_env_value(key: str, value: str):
-    """Dynamically update or append a key-value pair in the .env file."""
+    """Dynamically update or append a key-value pair in the .env file and os.environ."""
+    os.environ[key] = str(value)
     env_path = os.path.join(BASE_DIR, ".env")
     if not os.path.exists(env_path):
         return

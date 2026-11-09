@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import discord
 from dotenv import load_dotenv
 from main import DiscordTwin
-from vision import get_visual_description, fetch_twitter_metadata
+from vision import get_visual_description, fetch_twitter_metadata, fetch_instagram_metadata
 import config
 
 os.environ['ANONYMIZED_TELEMETRY'] = 'False'
@@ -81,7 +81,44 @@ async def extract_content_with_embeds(message, raw_text, brain=None):
                 print(f"🔗 [Twitter Resolved] -> {detail}")
                 return enriched
 
-    # 2. General URL handling (Discord Native Embeds & Companion Bots like ermiana)
+    # 2. Specialized Instagram Resolver
+    ig_match = re.search(r'https?://(?:www\.)?instagram\.com/(?:p|reel|tv)/[a-zA-Z0-9_-]+', raw_text)
+    if ig_match and brain:
+        ig_url = ig_match.group(0)
+        print(f"📷 [Instagram] Detected Instagram URL: {ig_url}, fetching rich metadata...")
+        ig_data = await fetch_instagram_metadata(ig_url)
+        if ig_data:
+            parts = []
+            if ig_data.get("author"):
+                parts.append(f"作者/来源: {ig_data['author']}")
+            if ig_data.get("text"):
+                desc = ig_data['text'].strip().replace('\n', ' ')
+                if len(desc) > 120:
+                    desc = desc[:120] + "..."
+                if desc:
+                    parts.append(f"配文内容: {desc}")
+
+            media_urls = ig_data.get("media_urls", [])
+            if media_urls:
+                try:
+                    print(f"🖼️ [Instagram Media] Found media preview URL: {media_urls[0][:70]}...")
+                    img_desc = await get_visual_description(brain, media_urls[0])
+                    if img_desc:
+                        parts.append(f"画面预览: {img_desc}")
+                except Exception as e:
+                    print(f"⚠️ [Instagram Vision] Error: {e}")
+
+            if parts:
+                detail = " | ".join(parts)
+                text_without_urls = re.sub(r'https?://\S+', '[Shared Link]', raw_text).strip()
+                if text_without_urls and text_without_urls != '[Shared Link]':
+                    enriched = f"{text_without_urls}\n[分享链接预览]:\n[{detail}]"
+                else:
+                    enriched = f"[分享链接预览]:\n[{detail}]"
+                print(f"🔗 [Instagram Resolved] -> {detail}")
+                return enriched
+
+    # 3. General URL handling (Discord Native Embeds & Companion Bots like ermiana)
     embeds_to_process = list(message.embeds)
     companion_images = []
 

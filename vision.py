@@ -46,6 +46,55 @@ async def fetch_twitter_metadata(tweet_url: str) -> dict | None:
         print(f"⚠️ [Twitter API] Failed to fetch {api_url}: {e}")
     return None
 
+async def fetch_instagram_metadata(ig_url: str) -> dict | None:
+    """
+    Fetch Instagram post/reel caption and preview image using proxy embed parser.
+    Supports posts (/p/), reels (/reel/), and videos (/tv/).
+    """
+    import html as html_lib
+    match = re.search(r'https?://(?:www\.)?instagram\.com/(?:p|reel|tv)/([^/?#&]+)', ig_url)
+    if not match:
+        return None
+    shortcode = match.group(1)
+
+    mirrors = [
+        f"https://www.kkclip.com/p/{shortcode}/",
+        f"https://www.kkclip.com/reel/{shortcode}/",
+    ]
+
+    headers = {
+        "User-Agent": "Discordbot/2.0 (+https://discordapp.com)"
+    }
+
+    for mirror_url in mirrors:
+        try:
+            async with httpx.AsyncClient(timeout=7.0, follow_redirects=True) as client:
+                resp = await client.get(mirror_url, headers=headers)
+                if resp.status_code == 200:
+                    text_content = resp.text
+                    title_m = re.search(r'<meta\s+property=[\'"]og:title[\'"]\s+content=[\'"]([^\'"]*)[\'"]', text_content)
+                    desc_m = re.search(r'<meta\s+(?:property=[\'"]og:description[\'"]|name=[\'"]description[\'"])\s+content=[\'"]([^\'"]*)[\'"]', text_content)
+                    img_m = re.search(r'<meta\s+(?:property=[\'"]og:image[\'"]|name=[\'"]twitter:image[\'"])\s+content=[\'"]([^\'"]*)[\'"]', text_content)
+
+                    author = html_lib.unescape(title_m.group(1)).strip() if title_m else ""
+                    desc = html_lib.unescape(desc_m.group(1)).strip() if desc_m else ""
+                    img_url = html_lib.unescape(img_m.group(1)).strip() if img_m else ""
+
+                    if " on Instagram" in author:
+                        author = author.replace(" on Instagram", "").strip()
+
+                    if author or desc or img_url:
+                        media_urls = [img_url] if img_url else []
+                        return {
+                            "author": author,
+                            "text": desc,
+                            "media_urls": media_urls
+                        }
+        except Exception as e:
+            print(f"⚠️ [Instagram Parser] Failed fetching {mirror_url}: {e}")
+
+    return None
+
 def preprocess_image_bytes(image_bytes: bytes, filename: str = "") -> tuple[str, bool]:
     """
     Preprocess image/gif bytes into an optimized base64 data URL.
